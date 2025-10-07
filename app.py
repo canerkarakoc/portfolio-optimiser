@@ -56,9 +56,9 @@ def main() -> None:
             "Risk-free rate (annual)", min_value=-1.0, max_value=1.0, value=0.02, step=0.005
         )
         max_alloc: Optional[float] = st.number_input(
-            "Max allocation per asset (optional)", min_value=0.0, max_value=1.0, value=1.0, step=0.05
+            "Max allocation per asset (optional)", min_value=0.0, max_value=1.0, value=0.25, step=0.05
         )
-        allow_short: bool = st.checkbox("Allow shorting", value=False)
+        color_by_dominant: bool = st.checkbox("Color by dominant asset", value=False)
 
         run_opt = st.button("Run Optimization", type="primary")
 
@@ -87,6 +87,23 @@ def main() -> None:
     if prices.empty or prices.shape[0] < 30:
         st.error("Insufficient price data to proceed.")
         return
+    # Show which tickers were dropped due to missing data
+    missing = [t for t in tickers if t not in prices.columns]
+    if len(missing) > 0:
+        st.warning(f"These tickers had insufficient data and were excluded: {', '.join(missing)}")
+        # Suggest ETF/index equivalents if user entered index aliases
+        suggestions = {
+            "^GSPC": "SPY",
+            "^DJI": "DIA",
+            "^IXIC": "QQQ",
+            "^NDX": "QQQ",
+            "^RUT": "IWM",
+            "^RUA": "VTI",
+            "^NYA": "VTI",
+        }
+        suggested = [suggestions[t] for t in missing if t in suggestions]
+        if suggested:
+            st.info(f"Try these liquid ETF equivalents instead: {', '.join(suggested)}")
 
     # Compute returns and covariance
     returns: pd.DataFrame = compute_returns(prices, method="log")
@@ -104,7 +121,7 @@ def main() -> None:
             mean_returns=mean_returns,
             cov_matrix=cov_matrix,
             risk_free_rate=risk_free_rate,
-            allow_short=allow_short,
+            allow_short=False,
             max_weight=max_alloc,
         )
     except Exception as exc:
@@ -116,17 +133,21 @@ def main() -> None:
         opt_sharpe_weights, opt_sharpe_perf = optimize_max_sharpe(
             returns=returns,
             risk_free_rate=risk_free_rate,
-            allow_short=allow_short,
+            allow_short=False,
             max_weight=max_alloc,
         )
     except Exception as exc:
         st.error(f"Max Sharpe optimization failed: {exc}")
+        # Show which assets survived preprocessing to help debug
+        st.write("Cleaned assets used for moments:")
+        st.write(list(returns.columns))
+        st.info("Try a longer date range, remove problematic tickers, or disable shorting.")
         return
 
     try:
         opt_minvol_weights, opt_minvol_perf = optimize_min_volatility(
             returns=returns,
-            allow_short=allow_short,
+            allow_short=False,
             max_weight=max_alloc,
         )
     except Exception as exc:
@@ -142,7 +163,11 @@ def main() -> None:
     with left:
         st.subheader("Efficient Frontier")
         if sampled is not None:
-            fig_frontier = plot_efficient_frontier(sampled, highlight=(er, vol))
+            fig_frontier = plot_efficient_frontier(
+                sampled,
+                highlight=(er, vol),
+                color_by_dominant=color_by_dominant,
+            )
             st.plotly_chart(fig_frontier, use_container_width=True)
         else:
             st.info("Frontier sampling unavailable.")
@@ -156,7 +181,7 @@ def main() -> None:
             st.warning(f"Could not plot cumulative returns: {exc}")
 
     with right:
-        st.subheader("Optimal Allocation (Max Sharpe)")
+        st.subheader("Optimal Allocation (Max Sharpe or Fallback Equal-Weight)")
         weights_series = pd.Series(opt_sharpe_weights)
         fig_alloc = plot_allocation_pie(weights_series)
         st.plotly_chart(fig_alloc, use_container_width=True)

@@ -26,6 +26,7 @@ def fetch_prices(tickers: List[str], start: str, end: str) -> pd.DataFrame:
     if len(tickers) == 0:
         return pd.DataFrame()
 
+    # First try bulk download for performance
     data = yf.download(
         tickers=tickers,
         start=start,
@@ -34,6 +35,7 @@ def fetch_prices(tickers: List[str], start: str, end: str) -> pd.DataFrame:
         progress=False,
         group_by="ticker",
         threads=True,
+        timeout=30,
     )
 
     # yfinance returns different shapes depending on number of tickers
@@ -46,6 +48,18 @@ def fetch_prices(tickers: List[str], start: str, end: str) -> pd.DataFrame:
         prices = data if "Close" not in data.columns else data["Close"]
         if isinstance(prices, pd.Series):
             prices = prices.to_frame(name=tickers[0])
+
+    # If bulk failed to fetch some tickers, retry individually
+    missing = [t for t in tickers if t not in prices.columns]
+    if missing:
+        for t in missing:
+            try:
+                s = yf.download(t, start=start, end=end, auto_adjust=True, progress=False, timeout=30)
+                if not s.empty:
+                    col = s["Close"] if "Close" in s.columns else s.squeeze()
+                    prices[t] = col
+            except Exception:
+                continue
 
     prices = prices.sort_index().dropna(how="all")
     # Drop columns that are entirely NaN or have too few data points

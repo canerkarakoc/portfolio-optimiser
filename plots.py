@@ -6,7 +6,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-def plot_efficient_frontier(sampled: pd.DataFrame, highlight: Optional[Tuple[float, float]] = None):
+def plot_efficient_frontier(
+    sampled: pd.DataFrame,
+    highlight: Optional[Tuple[float, float]] = None,
+    color_by_dominant: bool = False,
+):
     """Plot sampled portfolios and optionally a highlighted optimal point.
 
     Parameters
@@ -16,13 +20,15 @@ def plot_efficient_frontier(sampled: pd.DataFrame, highlight: Optional[Tuple[flo
     highlight : Optional[Tuple[float, float]]
         (return, volatility) to highlight.
     """
+    color = "dominant" if color_by_dominant and "dominant" in sampled.columns else "sharpe"
     fig = px.scatter(
         sampled,
         x="volatility",
         y="return",
-        color="sharpe",
-        color_continuous_scale="Viridis",
-        labels={"volatility": "Volatility", "return": "Return", "sharpe": "Sharpe"},
+        color=color,
+        color_continuous_scale=None if color == "dominant" else "Viridis",
+        hover_data=["top_weights"] if "top_weights" in sampled.columns else None,
+        labels={"volatility": "Volatility", "return": "Return", color: color.title()},
         title="Efficient Frontier (Random Sampling)",
     )
     if highlight is not None:
