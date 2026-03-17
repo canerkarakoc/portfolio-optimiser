@@ -55,16 +55,6 @@ portfolio-optimizer/
 ├─ .gitignore
 ```
 
-## Testing
-```bash
-pytest -q
-```
-
-## Notes
-- Data sources via `yfinance` can have gaps or symbol naming quirks. The app drops assets with insufficient data.
-- Optimizations use annualized moments (252 trading days).
-- For production, consider storing data, adding authentication, and richer backtesting.
-
 ## Example Tickers
 `AAPL, MSFT, GOOG, AMZN`
 
