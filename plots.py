@@ -6,31 +6,38 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-def plot_efficient_frontier(
-    sampled: pd.DataFrame,
-    highlight: Optional[Tuple[float, float]] = None,
-    color_by_dominant: bool = False,
-):
+def plot_efficient_frontier(sampled: pd.DataFrame, highlight: Optional[Tuple[float, float]] = None, color_by_dominant: bool = False):
     """Plot sampled portfolios and optionally a highlighted optimal point.
 
     Parameters
     ----------
     sampled : pd.DataFrame
-        Columns: return, volatility, sharpe
+        Columns: return, volatility, sharpe, dominant (optional)
     highlight : Optional[Tuple[float, float]]
         (return, volatility) to highlight.
+    color_by_dominant : bool
+        If True, color by dominant asset; otherwise color by Sharpe ratio.
     """
-    color = "dominant" if color_by_dominant and "dominant" in sampled.columns else "sharpe"
-    fig = px.scatter(
-        sampled,
-        x="volatility",
-        y="return",
-        color=color,
-        color_continuous_scale=None if color == "dominant" else "Viridis",
-        hover_data=["top_weights"] if "top_weights" in sampled.columns else None,
-        labels={"volatility": "Volatility", "return": "Return", color: color.title()},
-        title="Efficient Frontier (Random Sampling)",
-    )
+    if color_by_dominant and "dominant" in sampled.columns:
+        color_col = "dominant"
+        fig = px.scatter(
+            sampled,
+            x="volatility",
+            y="return",
+            color=color_col,
+            labels={"volatility": "Volatility", "return": "Return", "dominant": "Dominant Asset"},
+            title="Efficient Frontier (Random Sampling)",
+        )
+    else:
+        fig = px.scatter(
+            sampled,
+            x="volatility",
+            y="return",
+            color="sharpe",
+            color_continuous_scale="Viridis",
+            labels={"volatility": "Volatility", "return": "Return", "sharpe": "Sharpe"},
+            title="Efficient Frontier (Random Sampling)",
+        )
     if highlight is not None:
         er, vol = highlight
         fig.add_trace(
